@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANUFACTURER
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  RECALLED
+}
+
+enum CodeStatus {
+  ACTIVE
+  DEACTIVATED
+  EXPIRED
+}
+
+enum VerificationResult {
+  GENUINE
+  SUSPICIOUS
+  INVALID
+  DEACTIVATED
+  EXPIRED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id             String        @id @default(uuid())
+  name           String
+  email          String        @unique
+  password       String
+  role           Role
+  manufacturerId String?
+  manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  auditLogs      AuditLog[]
+
+  @@index([manufacturerId])
+}
+
+model Manufacturer {
+  id                 String    @id @default(uuid())
+  name               String
+  email              String
+  phone              String
+  address            String
+  logo               String?
+  registrationNumber String?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  users              User[]
+  products           Product[]
+}
+
+model Product {
+  id               String                    @id @default(uuid())
+  manufacturerId   String
+  manufacturer     Manufacturer              @relation(fields: [manufacturerId], references: [id])
+  name             String
+  productCode      String                    @unique
+  category         String
+  description      String?
+  batchNumber      String
+  serialNumber     String?
+  manufactureDate  DateTime?
+  expiryDate       DateTime?
+  status           ProductStatus             @default(ACTIVE)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  verificationCodes ProductVerificationCode[]
+
+  @@index([manufacturerId])
+  @@index([batchNumber])
+}
+
+model ProductVerificationCode {
+  id                String            @id @default(uuid())
+  productId         String
+  product           Product           @relation(fields: [productId], references: [id])
+  verificationToken String            @unique
+  qrCodeUrl         String?
+  status            CodeStatus        @default(ACTIVE)
+  verificationCount Int               @default(0)
+  firstVerifiedAt   DateTime?
+  lastVerifiedAt    DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  logs              VerificationLog[]
+
+  @@index([productId])
+}
+
+model VerificationLog {
+  id                 String                   @id @default(uuid())
+  verificationCodeId String?
+  verificationCode   ProductVerificationCode? @relation(fields: [verificationCodeId], references: [id])
+  enteredCode        String?
+  result             VerificationResult
+  riskLevel          RiskLevel
+  ipAddress          String?
+  userAgent          String?
+  country            String?
+  city               String?
+  latitude           Float?
+  longitude          Float?
+  verifiedAt         DateTime                 @default(now())
+
+  @@index([verificationCodeId, verifiedAt])
+  @@index([result])
+  @@index([verifiedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
